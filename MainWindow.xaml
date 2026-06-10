@@ -1,0 +1,315 @@
+<Window x:Class="DDNetNW.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
+        Title="DDNetNW v1.00" Height="720" Width="1120"
+        MinHeight="650" MinWidth="1000"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource AppBackground}">
+    <Window.Resources>
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextMain}"/>
+            <Setter Property="FontSize" Value="28"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+        <Style x:Key="MutedText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextMuted}"/>
+            <Setter Property="FontSize" Value="14"/>
+        </Style>
+        <Style x:Key="InfoCard" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource CardBackground}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BlueBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="22"/>
+            <Setter Property="Padding" Value="22"/>
+            <Setter Property="Margin" Value="0,0,0,16"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="250"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Background="#081326" BorderBrush="#132846" BorderThickness="0,0,1,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="128"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="118"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Margin="22,26,22,0">
+                    <TextBlock Text="DDNetNW" Foreground="#F3F7FF" FontSize="30" FontWeight="Bold"/>
+                    <TextBlock Text="v1.00" Foreground="#8FA3BF" FontSize="18" Margin="0,2,0,0"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" VerticalAlignment="Top">
+                    <RadioButton x:Name="NotificationsNav" GroupName="Navigation" Style="{StaticResource NavButton}" Tag="Notifications" Checked="Navigation_Checked">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🔔" FontSize="19" Margin="0,0,12,0"/>
+                            <TextBlock Text="Notifications"/>
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="AboutNav" GroupName="Navigation" Style="{StaticResource NavButton}" Tag="About" Checked="Navigation_Checked">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="ⓘ" FontSize="21" Margin="0,0,12,0"/>
+                            <TextBlock Text="About"/>
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="HomeNav" GroupName="Navigation" Style="{StaticResource NavButton}" Tag="Home" IsChecked="True" Checked="Navigation_Checked">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🏠" FontSize="18" Margin="0,0,12,0"/>
+                            <TextBlock Text="Main menu"/>
+                        </StackPanel>
+                    </RadioButton>
+                    <RadioButton x:Name="SettingsNav" GroupName="Navigation" Style="{StaticResource NavButton}" Tag="Settings" Checked="Navigation_Checked">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⚙" FontSize="20" Margin="0,0,12,0"/>
+                            <TextBlock Text="Settings"/>
+                        </StackPanel>
+                    </RadioButton>
+                </StackPanel>
+
+                <Border Grid.Row="2" Background="#0C1A30" BorderBrush="#1C3A62" BorderThickness="1" CornerRadius="16" Margin="16,12,16,18" Padding="16">
+                    <StackPanel>
+                        <TextBlock x:Name="SidebarStatusText" Text="Monitoring active" Foreground="#3DFF9F" FontWeight="SemiBold" FontSize="16"/>
+                        <TextBlock x:Name="SidebarScanText" Text="Waiting for first scan" Foreground="#8FA3BF" FontSize="13" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Column="1" Background="{StaticResource AppBackground}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="88"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="62"/>
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Background="#091426" BorderBrush="#132846" BorderThickness="0,0,0,1" Padding="34,0">
+                <Grid>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="PageTitle" Text="Main menu" Foreground="#F3F7FF" FontSize="28" FontWeight="Bold"/>
+                        <TextBlock x:Name="PageSubtitle" Text="Track DDNet nicknames from the public server list." Foreground="#8FA3BF" FontSize="14" Margin="0,4,0,0"/>
+                    </StackPanel>
+                    <Border HorizontalAlignment="Right" VerticalAlignment="Center" Background="#0C2A25" BorderBrush="#3DFF9F" BorderThickness="1" CornerRadius="16" Padding="16,8">
+                        <TextBlock x:Name="TopStatusText" Text="● Monitoring ON" Foreground="#B9FFD8" FontSize="14" FontWeight="SemiBold"/>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="1" Margin="34,28,34,20">
+                <Grid x:Name="HomePage">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="150"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Margin="0,0,0,18">
+                        <StackPanel>
+                            <TextBlock Text="Watched nicknames" Style="{StaticResource SectionTitle}" FontSize="24"/>
+                            <TextBlock Text="Cards are updated from DDNet servers.json. Green means online, red means offline." Style="{StaticResource MutedText}" Margin="0,5,0,0"/>
+                        </StackPanel>
+                        <Button Content="+ Add nickname" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Right" VerticalAlignment="Center" MinWidth="170" ToolTip="Add a DDNet nickname exactly as it appears in game." Click="AddNickname_Click"/>
+                    </Grid>
+
+                    <Border Grid.Row="1" Background="#091426" BorderBrush="#132846" BorderThickness="1" CornerRadius="18" Padding="20">
+                        <Grid>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl x:Name="PlayersItems" ItemsSource="{Binding Players}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,0,0,16" CornerRadius="16" Padding="24" Background="#101A2B" BorderBrush="{Binding BorderBrush}" BorderThickness="2">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Style.Triggers>
+                                                            <EventTrigger RoutedEvent="MouseEnter">
+                                                                <BeginStoryboard>
+                                                                    <Storyboard>
+                                                                        <ColorAnimation Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)" To="#17243A" Duration="0:0:0.18"/>
+                                                                    </Storyboard>
+                                                                </BeginStoryboard>
+                                                            </EventTrigger>
+                                                            <EventTrigger RoutedEvent="MouseLeave">
+                                                                <BeginStoryboard>
+                                                                    <Storyboard>
+                                                                        <ColorAnimation Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)" To="#101A2B" Duration="0:0:0.18"/>
+                                                                    </Storyboard>
+                                                                </BeginStoryboard>
+                                                            </EventTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding StatusDot}" Foreground="{Binding BorderBrush}" FontSize="22" Margin="0,0,12,0"/>
+                                                            <TextBlock Text="{Binding Nickname}" Foreground="#F3F7FF" FontSize="24" FontWeight="Bold"/>
+                                                            <Border Background="{Binding BadgeBackground}" BorderBrush="{Binding BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="10,4" Margin="14,0,0,0" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding StatusText}" Foreground="{Binding BadgeForeground}" FontSize="13" FontWeight="SemiBold"/>
+                                                            </Border>
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding MainLine}" Foreground="#D8E6FA" FontSize="16" Margin="0,16,0,0" TextWrapping="Wrap"/>
+                                                        <TextBlock Text="{Binding DetailsLine1}" Foreground="#8FA3BF" FontSize="14" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                                                        <TextBlock Text="{Binding DetailsLine2}" Foreground="#8FA3BF" FontSize="14" Margin="0,5,0,0" TextWrapping="Wrap"/>
+                                                        <TextBlock Text="{Binding DetailsLine3}" Foreground="#8FA3BF" FontSize="14" Margin="0,5,0,0" TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                    <Button Grid.Column="1" Content="Remove" Style="{StaticResource SoftButton}" VerticalAlignment="Top" Margin="16,0,0,0" ToolTip="Stop tracking this nickname." Tag="{Binding Nickname}" Click="RemoveNickname_Click"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                            <StackPanel x:Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock Text="No nicknames yet" Foreground="#F3F7FF" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                <TextBlock Text="Press Add nickname to start tracking a player." Foreground="#8FA3BF" FontSize="15" Margin="0,8,0,0" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Row="2" Style="{StaticResource InfoCard}" Margin="0,18,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Recent events" Foreground="#F3F7FF" FontSize="18" FontWeight="Bold"/>
+                                <ItemsControl x:Name="EventsItems" ItemsSource="{Binding Events}" Margin="0,10,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" Foreground="#8FA3BF" FontSize="13" Margin="0,2,0,0"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="Scan now" Style="{StaticResource SoftButton}" VerticalAlignment="Top" ToolTip="Run a manual server-list scan now." Click="ScanNow_Click"/>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <Grid x:Name="NotificationsPage" Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock Text="Notification channels" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="The local Windows channel is active in this version. Discord and Telegram are planned." Style="{StaticResource MutedText}" Margin="0,6,0,22"/>
+
+                        <Border Style="{StaticResource InfoCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Windows notifications" Foreground="#F3F7FF" FontSize="20" FontWeight="Bold"/>
+                                    <TextBlock Text="Add a local notification entry and play a system sound when a tracked nickname changes status." Foreground="#8FA3BF" FontSize="14" Margin="0,6,0,0"/>
+                                </StackPanel>
+                                <CheckBox x:Name="WindowsNotificationsCheck" Grid.Column="1" Style="{StaticResource ModernCheckBox}" IsChecked="True" VerticalAlignment="Center" ToolTip="Enable local notification sound and event log entries."/>
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource InfoCard}" Opacity="0.72">
+                            <Grid>
+                                <StackPanel>
+                                    <TextBlock Text="Discord" Foreground="#F3F7FF" FontSize="20" FontWeight="Bold"/>
+                                    <TextBlock Text="In development" Foreground="#8FA3BF" FontSize="14" Margin="0,6,0,0"/>
+                                </StackPanel>
+                                <Border HorizontalAlignment="Right" VerticalAlignment="Center" Background="#0D1D33" BorderBrush="#244A78" BorderThickness="1" CornerRadius="14" Padding="14,7">
+                                    <TextBlock Text="Locked" Foreground="#8FA3BF" FontWeight="SemiBold"/>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource InfoCard}" Opacity="0.72">
+                            <Grid>
+                                <StackPanel>
+                                    <TextBlock Text="Telegram" Foreground="#F3F7FF" FontSize="20" FontWeight="Bold"/>
+                                    <TextBlock Text="In development" Foreground="#8FA3BF" FontSize="14" Margin="0,6,0,0"/>
+                                </StackPanel>
+                                <Border HorizontalAlignment="Right" VerticalAlignment="Center" Background="#0D1D33" BorderBrush="#244A78" BorderThickness="1" CornerRadius="14" Padding="14,7">
+                                    <TextBlock Text="Locked" Foreground="#8FA3BF" FontWeight="SemiBold"/>
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <Grid x:Name="AboutPage" Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock Text="About" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="DDNetNW v1.00 reads the public DDNet server browser list and checks whether selected nicknames are online." Style="{StaticResource MutedText}" Margin="0,6,0,22" TextWrapping="Wrap"/>
+                        <Border Style="{StaticResource InfoCard}">
+                            <StackPanel>
+                                <TextBlock Text="How it works" Foreground="#F3F7FF" FontSize="20" FontWeight="Bold"/>
+                                <TextBlock Text="1. The app downloads DDNet servers.json from master servers." Foreground="#8FA3BF" FontSize="15" Margin="0,12,0,0"/>
+                                <TextBlock Text="2. It goes through every server and checks info.clients." Foreground="#8FA3BF" FontSize="15" Margin="0,8,0,0"/>
+                                <TextBlock Text="3. If client.name matches a watched nickname, the card becomes online." Foreground="#8FA3BF" FontSize="15" Margin="0,8,0,0"/>
+                                <TextBlock Text="4. The app compares the new state with the previous state to detect join, leave, map change, or server change." Foreground="#8FA3BF" FontSize="15" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource InfoCard}">
+                            <StackPanel>
+                                <TextBlock Text="Originally created by molochko." Foreground="#F3F7FF" FontSize="16" FontWeight="SemiBold"/>
+                                <TextBlock Text="Version: v1.00" Foreground="#8FA3BF" FontSize="15" Margin="0,8,0,0"/>
+                                <TextBlock Text="Important: DDNet nicknames are not accounts. The app tracks text nicknames from public servers, not a guaranteed person identity." Foreground="#8FA3BF" FontSize="15" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <Grid x:Name="SettingsPage" Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock Text="Settings" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="Tune the scan interval. The slider changes every single second." Style="{StaticResource MutedText}" Margin="0,6,0,22"/>
+
+                        <Border Style="{StaticResource InfoCard}">
+                            <StackPanel>
+                                <Grid>
+                                    <StackPanel>
+                                        <TextBlock Text="Scan interval" Foreground="#F3F7FF" FontSize="20" FontWeight="Bold"/>
+                                        <TextBlock Text="Lower values react faster, higher values are calmer for the DDNet master list." Foreground="#8FA3BF" FontSize="14" Margin="0,6,0,0"/>
+                                    </StackPanel>
+                                    <Border HorizontalAlignment="Right" VerticalAlignment="Top" Background="#0D1D33" BorderBrush="#244A78" BorderThickness="1" CornerRadius="14" Padding="14,7">
+                                        <TextBlock x:Name="CooldownValueText" Text="30 seconds" Foreground="#F3F7FF" FontWeight="SemiBold"/>
+                                    </Border>
+                                </Grid>
+                                <Slider x:Name="CooldownSlider" Style="{StaticResource ModernSlider}" Minimum="5" Maximum="180" Value="30" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,28,0,0" ToolTip="Scan interval in seconds. Lower values react faster." ValueChanged="CooldownSlider_ValueChanged"/>
+                                <Grid Margin="0,6,0,0">
+                                    <TextBlock Text="5s" Foreground="#8FA3BF" FontSize="12" HorizontalAlignment="Left"/>
+                                    <TextBlock Text="180s" Foreground="#8FA3BF" FontSize="12" HorizontalAlignment="Right"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource InfoCard}">
+                            <StackPanel>
+                                <TextBlock Text="Visual behavior" Foreground="#F3F7FF" FontSize="20" FontWeight="Bold"/>
+                                <TextBlock Text="Cards use green borders for online players and red borders for offline players. Hovering highlights the selected card without replacing the whole list." Foreground="#8FA3BF" FontSize="15" Margin="0,10,0,0" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+
+            <Border Grid.Row="2" Background="#091426" BorderBrush="#132846" BorderThickness="0,1,0,0" Padding="34,0">
+                <Grid>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock x:Name="FooterIntervalText" Text="Check every: 30 seconds" Foreground="#8FA3BF" FontSize="13"/>
+                        <TextBlock Text="   •   " Foreground="#244A78" FontSize="13"/>
+                        <TextBlock x:Name="FooterPlayersText" Text="0 nicknames" Foreground="#8FA3BF" FontSize="13"/>
+                        <TextBlock Text="   •   " Foreground="#244A78" FontSize="13"/>
+                        <TextBlock x:Name="FooterMasterText" Text="master status: waiting" Foreground="#8FA3BF" FontSize="13"/>
+                    </StackPanel>
+                    <TextBlock x:Name="FooterLastScanText" Text="Last scan: never" Foreground="#8FA3BF" FontSize="13" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

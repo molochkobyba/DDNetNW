@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+
+    <AssemblyName>DDNetNW</AssemblyName>
+    <RootNamespace>DDNetNW</RootNamespace>
+    <Product>DDNetNW</Product>
+    <Title>DDNetNW</Title>
+    <Authors>molochko</Authors>
+    <Company>molochko</Company>
+    <Description>Desktop nickname watcher for public DDNet servers.</Description>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <InformationalVersion>1.00</InformationalVersion>
+  </PropertyGroup>
+</Project>
