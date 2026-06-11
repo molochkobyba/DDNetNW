@@ -3,8 +3,9 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
+    <ImplicitUsings>false</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
 
     <AssemblyName>DDNetNW</AssemblyName>
     <RootNamespace>DDNetNW</RootNamespace>
@@ -12,10 +13,16 @@
     <Title>DDNetNW</Title>
     <Authors>molochko</Authors>
     <Company>molochko</Company>
-    <Description>Desktop nickname watcher for public DDNet servers.</Description>
-    <Version>1.0.0</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
-    <InformationalVersion>1.00</InformationalVersion>
+    <Description>Windows desktop watcher for public DDNet players, maps and server activity.</Description>
+    <Version>1.20.0</Version>
+    <AssemblyVersion>1.20.0.0</AssemblyVersion>
+    <FileVersion>1.20.0.0</FileVersion>
+    <InformationalVersion>1.20</InformationalVersion>
+    <ApplicationIcon>Assets\icon_app.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\icon_transparent.png" />
+    <Content Include="Assets\icon_app.ico" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

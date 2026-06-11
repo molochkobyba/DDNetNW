@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Text.Json;
 using DDNetNW.Models;
@@ -16,17 +17,22 @@ public sealed class AppSettingsService
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         AppMetadata.Name);
 
-    public string SettingsFilePath => Path.Combine(SettingsDirectory, "settings.json");
+    public string SettingsFilePath => Path.Combine(SettingsDirectory, "settings-v1.20.json");
+
+    public string LegacySettingsFilePath => Path.Combine(SettingsDirectory, "settings.json");
 
     public AppSettings Load()
     {
-        var path = GetSettingsPathForRead();
-        if (path is null)
+        var filePath = File.Exists(SettingsFilePath)
+            ? SettingsFilePath
+            : LegacySettingsFilePath;
+
+        if (!File.Exists(filePath))
         {
             return new AppSettings();
         }
 
-        var json = File.ReadAllText(path);
+        var json = File.ReadAllText(filePath);
         return JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new AppSettings();
     }
 
@@ -35,15 +41,5 @@ public sealed class AppSettingsService
         Directory.CreateDirectory(SettingsDirectory);
         var json = JsonSerializer.Serialize(settings, JsonOptions);
         File.WriteAllText(SettingsFilePath, json);
-    }
-
-    private string? GetSettingsPathForRead()
-    {
-        if (File.Exists(SettingsFilePath))
-        {
-            return SettingsFilePath;
-        }
-
-        return null;
     }
 }

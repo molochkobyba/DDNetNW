@@ -1,32 +1,42 @@
+using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows;
 using System.Windows.Media;
-using WpfBrush = System.Windows.Media.Brush;
+using DDNetNW.Services;
 
 namespace DDNetNW.Models;
 
 public sealed class PlayerCard : INotifyPropertyChanged
 {
-    public event PropertyChangedEventHandler? PropertyChanged;
-
     private PlayerState _state = PlayerState.Unknown;
+    private string _nickname;
     private string _serverName = string.Empty;
     private string _serverAddress = string.Empty;
     private string _mapName = string.Empty;
     private string _gameType = string.Empty;
-    private string _score = "not available";
-    private string _team = "unknown";
+    private string _score = string.Empty;
+    private string _team = string.Empty;
     private bool _isAfk;
     private bool _isPlayer;
     private string _clan = string.Empty;
     private DateTime? _lastSeen;
+    private bool _isExpanded;
+    private bool _showServerAddress;
+    private bool _showExtraDetails;
 
     private PlayerCard(string nickname)
     {
-        Nickname = nickname;
+        _nickname = nickname;
     }
 
-    public string Nickname { get; }
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public string Nickname
+    {
+        get => _nickname;
+        private set => SetField(ref _nickname, value);
+    }
 
     public PlayerState State
     {
@@ -94,54 +104,78 @@ public sealed class PlayerCard : INotifyPropertyChanged
         private set => SetField(ref _lastSeen, value);
     }
 
-    public string StatusDot => "●";
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        private set => SetField(ref _isExpanded, value);
+    }
 
     public string StatusText => State switch
     {
-        PlayerState.Online => "Online",
-        PlayerState.Offline => "Offline",
-        _ => "Waiting"
+        PlayerState.Online => LocalizationService.Get("online"),
+        PlayerState.Offline => LocalizationService.Get("offline"),
+        _ => LocalizationService.Get("waiting")
     };
 
-    public string MainLine => State switch
+    public string SummaryLine => State switch
     {
-        PlayerState.Online => $"Map: {MapName}",
-        PlayerState.Offline => "Offline",
-        _ => "Waiting for first scan..."
+        PlayerState.Online => $"{ServerName} • {MapName}",
+        PlayerState.Offline => LocalizationService.Get("offline"),
+        _ => LocalizationService.Get("waitingScan")
     };
 
-    public string DetailsLine1 => State switch
+    public string SecondaryLine => State switch
     {
-        PlayerState.Online => $"Server: {ServerName}",
-        PlayerState.Offline => LastSeen is null ? "No online session detected yet." : $"Last seen: {LastSeen:HH:mm:ss}",
-        _ => "The app will update this card after the next scan."
+        PlayerState.Online => string.IsNullOrWhiteSpace(Score) ? GameType : GameType,
+        PlayerState.Offline => LastSeen is null ? LocalizationService.Get("noSession") : $"{LocalizationService.Get("lastSeen")}: {LastSeen:HH:mm:ss}",
+        _ => LocalizationService.Get("waitingScan")
     };
 
-    public string DetailsLine2 => State == PlayerState.Online ? $"Address: {ServerAddress}" : string.Empty;
-
-    public string DetailsLine3 => State == PlayerState.Online
-        ? $"Score/Time: {Score} · Team: {Team} · AFK: {(IsAfk ? "yes" : "no")} · Type: {(IsPlayer ? "player" : "spectator")}"
-        : string.Empty;
-
-    public WpfBrush BorderBrush => State switch
+    public string DetailsLine => State switch
     {
-        PlayerState.Online => BrushFromHex("#3DFF9F"),
-        PlayerState.Offline => BrushFromHex("#FF4F6D"),
-        _ => BrushFromHex("#FAD66B")
+        PlayerState.Online => $"{LocalizationService.Get("server")}: {ServerName} • {LocalizationService.Get("map")}: {MapName}",
+        PlayerState.Offline => LastSeen is null
+            ? LocalizationService.Get("noSession")
+            : $"{LocalizationService.Get("status")}: {LocalizationService.Get("offline")} • {LocalizationService.Get("lastSeen")}: {LastSeen:HH:mm:ss}",
+        _ => LocalizationService.Get("waitingScan")
     };
 
-    public WpfBrush BadgeBackground => State switch
+    public string AddressLine => string.IsNullOrWhiteSpace(ServerAddress)
+        ? $"{LocalizationService.Get("address")}: —"
+        : $"{LocalizationService.Get("address")}: {ServerAddress}";
+
+    public string ExtraDetailsLine
     {
-        PlayerState.Online => BrushFromHex("#0C2A25"),
-        PlayerState.Offline => BrushFromHex("#2A101A"),
-        _ => BrushFromHex("#2A2410")
+        get
+        {
+            var clanValue = string.IsNullOrWhiteSpace(Clan) ? "—" : Clan;
+            return $"{LocalizationService.Get("mode")}: {GameType} • {LocalizationService.Get("clan")}: {clanValue} • {LocalizationService.Get("team")}: {Team} • {LocalizationService.Get("afk")}: {(IsAfk ? LocalizationService.Get("yes") : LocalizationService.Get("no"))} • {(IsPlayer ? LocalizationService.Get("player") : LocalizationService.Get("spectator"))}";
+        }
+    }
+
+    public Visibility ExpandedVisibility => IsExpanded ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility AddressVisibility => IsExpanded && State == PlayerState.Online && _showServerAddress ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility ExtraVisibility => IsExpanded && State == PlayerState.Online && _showExtraDetails ? Visibility.Visible : Visibility.Collapsed;
+
+    public Brush BorderBrush => State switch
+    {
+        PlayerState.Online => GetResourceBrush("StateOnlineBorder", "#52D89A"),
+        PlayerState.Offline => GetResourceBrush("StateOfflineBorder", "#F27A92"),
+        _ => GetResourceBrush("StateWaitingBorder", "#D4A94B")
     };
 
-    public WpfBrush BadgeForeground => State switch
+    public Brush BadgeBackground => State switch
     {
-        PlayerState.Online => BrushFromHex("#B9FFD8"),
-        PlayerState.Offline => BrushFromHex("#FFC2CC"),
-        _ => BrushFromHex("#FFEAA3")
+        PlayerState.Online => GetResourceBrush("StateOnlineBadgeBackground", "#103225"),
+        PlayerState.Offline => GetResourceBrush("StateOfflineBadgeBackground", "#34111B"),
+        _ => GetResourceBrush("StateWaitingBadgeBackground", "#342A12")
+    };
+
+    public Brush BadgeForeground => State switch
+    {
+        PlayerState.Online => GetResourceBrush("StateOnlineBadgeForeground", "#C6FFE2"),
+        PlayerState.Offline => GetResourceBrush("StateOfflineBadgeForeground", "#FFD2DA"),
+        _ => GetResourceBrush("StateWaitingBadgeForeground", "#FFE9B4")
     };
 
     public static PlayerCard CreateUnknown(string nickname) => new(nickname);
@@ -168,14 +202,48 @@ public sealed class PlayerCard : INotifyPropertyChanged
         RefreshCalculatedProperties();
     }
 
+    public void Rename(string nickname)
+    {
+        Nickname = nickname;
+        State = PlayerState.Unknown;
+        ServerName = string.Empty;
+        ServerAddress = string.Empty;
+        MapName = string.Empty;
+        GameType = string.Empty;
+        Score = string.Empty;
+        Team = string.Empty;
+        IsAfk = false;
+        IsPlayer = false;
+        Clan = string.Empty;
+        RefreshCalculatedProperties();
+    }
+
+    public void ToggleExpanded()
+    {
+        IsExpanded = !IsExpanded;
+        RefreshCalculatedProperties();
+    }
+
+    public void UpdateDisplaySettings(bool showServerAddress, bool showExtraDetails)
+    {
+        _showServerAddress = showServerAddress;
+        _showExtraDetails = showExtraDetails;
+        RefreshCalculatedProperties();
+    }
+
+    public void RefreshLocalizedProperties() => RefreshCalculatedProperties();
+
     private void RefreshCalculatedProperties()
     {
-        OnPropertyChanged(nameof(StatusDot));
         OnPropertyChanged(nameof(StatusText));
-        OnPropertyChanged(nameof(MainLine));
-        OnPropertyChanged(nameof(DetailsLine1));
-        OnPropertyChanged(nameof(DetailsLine2));
-        OnPropertyChanged(nameof(DetailsLine3));
+        OnPropertyChanged(nameof(SummaryLine));
+        OnPropertyChanged(nameof(SecondaryLine));
+        OnPropertyChanged(nameof(DetailsLine));
+        OnPropertyChanged(nameof(AddressLine));
+        OnPropertyChanged(nameof(ExtraDetailsLine));
+        OnPropertyChanged(nameof(ExpandedVisibility));
+        OnPropertyChanged(nameof(AddressVisibility));
+        OnPropertyChanged(nameof(ExtraVisibility));
         OnPropertyChanged(nameof(BorderBrush));
         OnPropertyChanged(nameof(BadgeBackground));
         OnPropertyChanged(nameof(BadgeForeground));
@@ -183,7 +251,7 @@ public sealed class PlayerCard : INotifyPropertyChanged
 
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
-        if (EqualityComparer<T>.Default.Equals(field, value))
+        if (Equals(field, value))
         {
             return false;
         }
@@ -201,5 +269,15 @@ public sealed class PlayerCard : INotifyPropertyChanged
     private static SolidColorBrush BrushFromHex(string hex)
     {
         return new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+    }
+
+    private static Brush GetResourceBrush(string key, string fallbackHex)
+    {
+        if (Application.Current?.Resources[key] is Brush brush)
+        {
+            return brush;
+        }
+
+        return BrushFromHex(fallbackHex);
     }
 }
