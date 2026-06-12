@@ -25,7 +25,7 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <Image Source="Assets/icon_transparent.png" Width="22" Height="22" Margin="2,0,8,0"/>
-                        <TextBlock x:Name="WindowTitleText" Text="DDNetNW v1.20" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="WindowTitleText" Text="DDNetNW v1.35" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Style="{StaticResource TitleBarButton}" Content="—" Click="MinimizeButton_Click"/>
@@ -48,7 +48,7 @@
                     <StackPanel>
                         <Image Source="Assets/icon_transparent.png" Width="54" Height="54" HorizontalAlignment="Left"/>
                         <TextBlock Text="DDNetNW" FontSize="20" FontWeight="Bold" Margin="0,12,0,0"/>
-                        <TextBlock x:Name="SidebarVersionText" Text="v1.20" Foreground="{DynamicResource TextMuted}" FontSize="13" Margin="0,2,0,0"/>
+                        <TextBlock x:Name="SidebarVersionText" Text="v1.35" Foreground="{DynamicResource TextMuted}" FontSize="13" Margin="0,2,0,0"/>
                     </StackPanel>
 
                     <StackPanel Grid.Row="1" Margin="0,20,0,0">
@@ -131,7 +131,7 @@
                         <Border Grid.Column="2" Background="{DynamicResource StateOnlineBadgeBackground}" BorderBrush="{DynamicResource StateOnlineBorder}" BorderThickness="1" CornerRadius="18" Padding="16,8" Margin="0,0,12,0" VerticalAlignment="Center">
                             <TextBlock x:Name="TopStatusText" Text="● Monitoring ON" Foreground="{DynamicResource StateOnlineBadgeForeground}" FontWeight="SemiBold"/>
                         </Border>
-                        <Button Grid.Column="3" x:Name="AddNicknameButton" Style="{StaticResource PrimaryButton}" Content="+ Add nickname" MinWidth="160" Click="AddNickname_Click"/>
+                        <Button Grid.Column="3" x:Name="AddNicknameButton" Style="{StaticResource PrimaryButton}" Content="+ Add nickname" MinWidth="160" Visibility="Collapsed" Click="AddNickname_Click"/>
                         <Button Grid.Column="3" x:Name="AddMapButton" Style="{StaticResource PrimaryButton}" Content="+ Add map" MinWidth="160" Visibility="Collapsed" Click="AddMap_Click"/>
                     </Grid>
 
@@ -139,6 +139,7 @@
                         <Grid>
                             <Grid x:Name="PlayersPanel">
                                 <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
@@ -150,7 +151,39 @@
                                     <TextBlock x:Name="CardsTitleText" Text="Watched nicknames" Style="{StaticResource SectionTitle}"/>
                                     <Button Grid.Column="1" x:Name="ScanNowButton" Style="{StaticResource SecondaryButton}" Content="Scan now" Click="ScanNow_Click"/>
                                 </Grid>
-                                <Grid Grid.Row="1" Margin="0,14,0,0">
+                                <Border Grid.Row="1" Margin="0,14,0,0" Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource BlueBorder}" BorderThickness="1" CornerRadius="18" Padding="14">
+                                    <StackPanel>
+                                        <TextBlock x:Name="SearchTitleText" Text="Quick nickname search" FontSize="15" FontWeight="SemiBold"/>
+                                        <Grid Margin="0,10,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="SearchNicknameBox" Style="{StaticResource ModernTextBox}" MinHeight="42" VerticalContentAlignment="Center" KeyDown="SearchNicknameBox_KeyDown" TextChanged="SearchNicknameBox_TextChanged"/>
+                                            <Button Grid.Column="1" x:Name="SearchNicknameButton" Style="{StaticResource SecondaryButton}" Content="Search" MinWidth="118" Margin="10,0,0,0" Click="SearchNickname_Click"/>
+                                        </Grid>
+
+                                        <Border x:Name="SearchResultStrip" Visibility="Collapsed" Margin="0,10,0,0" Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource BlueBorder}" BorderThickness="1" CornerRadius="14" Padding="12">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="SearchResultStatusDot" Text="●" FontSize="15" FontWeight="Bold" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                                    <TextBlock x:Name="SearchResultNicknameText" Text="Nickname" FontSize="15" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                    <TextBlock x:Name="SearchResultClanText" Text="Clan: —" Foreground="{DynamicResource TextMuted}" FontSize="13" Margin="18,0,0,0" VerticalAlignment="Center"/>
+                                                    <TextBlock x:Name="SearchResultMapText" Text="Map: —" Foreground="{DynamicResource TextMuted}" FontSize="13" Margin="18,0,0,0" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                                <Button Grid.Column="1" x:Name="SearchResultAddButton" Style="{StaticResource SecondaryButton}" Content="+ Watch" MinHeight="34" Padding="14,6" Margin="12,0,0,0" Click="AddSearchResult_Click"/>
+                                                <Button Grid.Column="2" x:Name="SearchResultClearButton" Style="{StaticResource IconButton}" Content="×" Width="34" Height="34" Margin="8,0,0,0" Click="ClearSearchResult_Click"/>
+                                            </Grid>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+
+                                <Grid Grid.Row="2" Margin="0,14,0,0">
                                     <Border x:Name="EmptyState" Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource BlueBorder}" BorderThickness="1" CornerRadius="18" Padding="20" Visibility="Collapsed">
                                         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                             <TextBlock x:Name="EmptyStateTitle" Text="No nicknames yet" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center"/>
@@ -361,6 +394,7 @@
                                             <StackPanel Orientation="Horizontal">
                                                 <RadioButton x:Name="LanguageEnglishButton" Style="{StaticResource SegmentButton}" GroupName="LanguageGroup" Content="ENG" Tag="en" Checked="LanguageSegment_Checked"/>
                                                 <RadioButton x:Name="LanguageRussianButton" Style="{StaticResource SegmentButton}" GroupName="LanguageGroup" Content="RUS" Tag="ru" Checked="LanguageSegment_Checked"/>
+                                                <RadioButton x:Name="LanguageSpanishButton" Style="{StaticResource SegmentButton}" GroupName="LanguageGroup" Content="ESP" Tag="es" Checked="LanguageSegment_Checked"/>
                                             </StackPanel>
                                         </Border>
                                     </Grid>
@@ -415,14 +449,10 @@
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <TextBlock x:Name="MapServerFilterLabelText" Text="Server filter" VerticalAlignment="Center"/>
-                                        <Border Grid.Column="1" Background="{DynamicResource NavBackground}" BorderBrush="{DynamicResource NavBorder}" BorderThickness="1" CornerRadius="17" Padding="4">
-                                            <StackPanel Orientation="Horizontal">
-                                                <RadioButton x:Name="FilterAnyButton" Style="{StaticResource SegmentButton}" GroupName="MapFilterGroup" Content="Any" Tag="Any" Checked="MapServerFilter_Checked"/>
-                                                <RadioButton x:Name="FilterGerButton" Style="{StaticResource SegmentButton}" GroupName="MapFilterGroup" Content="GER" Tag="GER" Checked="MapServerFilter_Checked"/>
-                                                <RadioButton x:Name="FilterRusButton" Style="{StaticResource SegmentButton}" GroupName="MapFilterGroup" Content="RUS" Tag="RUS" Checked="MapServerFilter_Checked"/>
-                                                <RadioButton x:Name="FilterGerRusButton" Style="{StaticResource SegmentButton}" GroupName="MapFilterGroup" Content="GER+RUS" Tag="GER_RUS" Checked="MapServerFilter_Checked"/>
-                                            </StackPanel>
-                                        </Border>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                            <TextBlock x:Name="MapServerFilterValueText" Text="Any" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                            <Button x:Name="ChangeMapServerFilterButton" Style="{StaticResource SecondaryButton}" Content="Change" MinWidth="96" Click="ChangeMapServerFilter_Click"/>
+                                        </StackPanel>
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -447,7 +477,7 @@
 
                             <Border Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource BlueBorder}" BorderThickness="1" CornerRadius="22" Padding="18" Margin="0,20,0,0">
                                 <StackPanel>
-                                    <TextBlock x:Name="AboutVersionText" Text="Version: v1.20" FontSize="16" FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="AboutVersionText" Text="Version: v1.35" FontSize="16" FontWeight="SemiBold"/>
                                     <TextBlock x:Name="AboutCreatorText" Text="Originally created by molochko." Foreground="{DynamicResource TextMuted}" FontSize="14" Margin="0,8,0,0"/>
                                 </StackPanel>
                             </Border>

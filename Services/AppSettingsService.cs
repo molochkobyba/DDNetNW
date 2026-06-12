@@ -17,7 +17,9 @@ public sealed class AppSettingsService
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         AppMetadata.Name);
 
-    public string SettingsFilePath => Path.Combine(SettingsDirectory, "settings-v1.20.json");
+    public string SettingsFilePath => Path.Combine(SettingsDirectory, "settings-v1.35.json");
+
+    public string PreviousSettingsFilePath => Path.Combine(SettingsDirectory, "settings-v1.20.json");
 
     public string LegacySettingsFilePath => Path.Combine(SettingsDirectory, "settings.json");
 
@@ -25,7 +27,9 @@ public sealed class AppSettingsService
     {
         var filePath = File.Exists(SettingsFilePath)
             ? SettingsFilePath
-            : LegacySettingsFilePath;
+            : File.Exists(PreviousSettingsFilePath)
+                ? PreviousSettingsFilePath
+                : LegacySettingsFilePath;
 
         if (!File.Exists(filePath))
         {

@@ -64,9 +64,44 @@ public static class LocalizationService
         ["unknown"] = "неизвестно"
     };
 
+
+    private static readonly Dictionary<string, string> Es = new()
+    {
+        ["mainMenu"] = "Menú principal",
+        ["notifications"] = "Notificaciones",
+        ["options"] = "Opciones",
+        ["about"] = "Acerca de",
+        ["online"] = "En línea",
+        ["offline"] = "Desconectado",
+        ["waiting"] = "Esperando",
+        ["noSession"] = "No se detectó una sesión online todavía.",
+        ["lastSeen"] = "Visto por última vez",
+        ["waitingScan"] = "Esperando el primer escaneo.",
+        ["watchSelected"] = "Sigue nicks de DDNet desde la lista pública de servidores.",
+        ["address"] = "Dirección",
+        ["server"] = "Servidor",
+        ["map"] = "Mapa",
+        ["status"] = "Estado",
+        ["details"] = "Detalles",
+        ["mode"] = "Modo",
+        ["clan"] = "Clan",
+        ["team"] = "Equipo",
+        ["afk"] = "AFK",
+        ["yes"] = "sí",
+        ["no"] = "no",
+        ["player"] = "jugador",
+        ["spectator"] = "espectador",
+        ["unknown"] = "desconocido"
+    };
+
     public static string Get(string key)
     {
-        var map = CurrentLanguage == "ru" ? Ru : En;
+        var map = CurrentLanguage switch
+        {
+            "ru" => Ru,
+            "es" => Es,
+            _ => En
+        };
         return map.TryGetValue(key, out var value) ? value : key;
     }
 }

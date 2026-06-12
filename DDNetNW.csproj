@@ -14,10 +14,10 @@
     <Authors>molochko</Authors>
     <Company>molochko</Company>
     <Description>Windows desktop watcher for public DDNet players, maps and server activity.</Description>
-    <Version>1.20.0</Version>
-    <AssemblyVersion>1.20.0.0</AssemblyVersion>
-    <FileVersion>1.20.0.0</FileVersion>
-    <InformationalVersion>1.20</InformationalVersion>
+    <Version>1.35.0</Version>
+    <AssemblyVersion>1.35.0.0</AssemblyVersion>
+    <FileVersion>1.35.0.0</FileVersion>
+    <InformationalVersion>1.35</InformationalVersion>
     <ApplicationIcon>Assets\icon_app.ico</ApplicationIcon>
   </PropertyGroup>
 

@@ -19,6 +19,8 @@ public partial class MainWindow : Window
     private readonly DdnetMasterClient _masterClient = new();
     private readonly LocalNotificationService _notificationService = new();
     private readonly DispatcherTimer _scanTimer = new();
+    private readonly DispatcherTimer _searchDebounceTimer = new();
+    private readonly NicknameSearchService _nicknameSearchService;
 
     private bool _scanInProgress;
     private bool _suppressSettingsSave;
@@ -32,6 +34,10 @@ public partial class MainWindow : Window
     private bool _showServerAddress;
     private bool _showExtraDetails;
     private WatchedMapCard? _selectedMap;
+    private string _lastSearchNickname = string.Empty;
+    private PlayerScanResult? _lastSearchResult;
+    private bool _lastSearchOnline;
+    private int _searchRequestVersion;
 
     public ObservableCollection<PlayerCard> Players { get; } = new();
     public ObservableCollection<WatchedMapCard> WatchedMaps { get; } = new();
@@ -40,6 +46,7 @@ public partial class MainWindow : Window
 
     public MainWindow()
     {
+        _nicknameSearchService = new NicknameSearchService(_masterClient);
         InitializeComponent();
         DataContext = this;
 
@@ -51,6 +58,7 @@ public partial class MainWindow : Window
         ApplyCardDisplaySettings();
         SetHomeMode(_homeMode);
         ConfigureScanTimer();
+        ConfigureQuickSearchDebounce();
     }
 
     private void ConfigureApplicationText()
@@ -80,7 +88,7 @@ public partial class MainWindow : Window
         {
             _windowLoaded = true;
             UpdateStaticUi();
-            AddEvent(_currentLanguage == "ru" ? "Приложение запущено." : "Application started.");
+            AddEvent(Text("Application started.", "Приложение запущено.", "Aplicación iniciada."));
 
             if (Players.Count > 0 || WatchedMaps.Count > 0)
             {
@@ -94,6 +102,16 @@ public partial class MainWindow : Window
         _scanTimer.Interval = TimeSpan.FromSeconds(_cooldownSeconds);
         _scanTimer.Tick += async (_, _) => await ScanAsync();
         _scanTimer.Start();
+    }
+
+    private void ConfigureQuickSearchDebounce()
+    {
+        _searchDebounceTimer.Interval = TimeSpan.FromSeconds(1);
+        _searchDebounceTimer.Tick += async (_, _) =>
+        {
+            _searchDebounceTimer.Stop();
+            await SearchNicknameAsync();
+        };
     }
 
     private void Navigation_Checked(object sender, RoutedEventArgs e)
@@ -138,7 +156,8 @@ public partial class MainWindow : Window
         PlayersPanel.Visibility = mapsMode ? Visibility.Collapsed : Visibility.Visible;
         MapsOverviewPanel.Visibility = mapsMode && _selectedMap is null ? Visibility.Visible : Visibility.Collapsed;
         MapDetailsPanel.Visibility = mapsMode && _selectedMap is not null ? Visibility.Visible : Visibility.Collapsed;
-        AddNicknameButton.Visibility = mapsMode ? Visibility.Collapsed : Visibility.Visible;
+        // v1.35: nicknames are added through Quick Search, not through the old Add Nickname button.
+        AddNicknameButton.Visibility = Visibility.Collapsed;
         AddMapButton.Visibility = mapsMode ? Visibility.Visible : Visibility.Collapsed;
 
         if (PlayersModeButton is not null && MapsModeButton is not null)
@@ -163,7 +182,7 @@ public partial class MainWindow : Window
 
         if (Players.Any(player => DdnetMasterClient.NormalizeName(player.Nickname) == normalized))
         {
-            ShowDuplicateMessage(_currentLanguage == "ru" ? "Такой ник уже есть в списке." : "This nickname is already in the list.");
+            ShowDuplicateMessage(Text("This nickname is already in the list.", "Такой ник уже есть в списке.", "Este nick ya está en la lista."));
             AddEvent(_currentLanguage == "ru" ? $"Ник уже добавлен: {nickname}" : $"Nickname already exists: {nickname}");
             return;
         }
@@ -219,7 +238,7 @@ public partial class MainWindow : Window
 
         if (Players.Any(player => !ReferenceEquals(player, card) && DdnetMasterClient.NormalizeName(player.Nickname) == normalized))
         {
-            ShowDuplicateMessage(_currentLanguage == "ru" ? "Такой ник уже есть в списке." : "This nickname is already in the list.");
+            ShowDuplicateMessage(Text("This nickname is already in the list.", "Такой ник уже есть в списке.", "Este nick ya está en la lista."));
             AddEvent(_currentLanguage == "ru" ? $"Ник уже добавлен: {newNickname}" : $"Nickname already exists: {newNickname}");
             return;
         }
@@ -354,6 +373,223 @@ public partial class MainWindow : Window
         await ScanAsync();
     }
 
+    private async void SearchNickname_Click(object sender, RoutedEventArgs e)
+    {
+        _searchDebounceTimer.Stop();
+        await SearchNicknameAsync();
+    }
+
+    private async void SearchNicknameBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        _searchDebounceTimer.Stop();
+        await SearchNicknameAsync();
+    }
+
+    private void SearchNicknameBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!_windowLoaded)
+        {
+            return;
+        }
+
+        _searchRequestVersion++;
+        _searchDebounceTimer.Stop();
+
+        if (string.IsNullOrWhiteSpace(SearchNicknameBox.Text))
+        {
+            HideSearchResult();
+            return;
+        }
+
+        _searchDebounceTimer.Start();
+    }
+
+    private async System.Threading.Tasks.Task SearchNicknameAsync()
+    {
+        var nickname = SearchNicknameBox.Text.Trim();
+        var requestVersion = ++_searchRequestVersion;
+
+        if (string.IsNullOrWhiteSpace(nickname))
+        {
+            HideSearchResult();
+            return;
+        }
+
+        SetSearchLoading(nickname);
+
+        try
+        {
+            SearchNicknameButton.IsEnabled = false;
+            var result = await _nicknameSearchService.SearchExactAsync(nickname);
+
+            if (requestVersion != _searchRequestVersion)
+            {
+                return;
+            }
+
+            ShowSearchResult(result);
+        }
+        catch (Exception ex)
+        {
+            if (requestVersion == _searchRequestVersion)
+            {
+                ShowSearchError(nickname, ex.Message);
+            }
+        }
+        finally
+        {
+            SearchNicknameButton.IsEnabled = true;
+        }
+    }
+
+    private void AddSearchResult_Click(object sender, RoutedEventArgs e)
+    {
+        var nickname = string.IsNullOrWhiteSpace(_lastSearchNickname)
+            ? SearchNicknameBox.Text.Trim()
+            : _lastSearchNickname.Trim();
+
+        if (string.IsNullOrWhiteSpace(nickname))
+        {
+            return;
+        }
+
+        var normalized = DdnetMasterClient.NormalizeName(nickname);
+
+        if (Players.Any(player => DdnetMasterClient.NormalizeName(player.Nickname) == normalized))
+        {
+            ShowDuplicateMessage(Text("This nickname is already in the list.", "Такой ник уже есть в списке.", "Este nick ya está en la lista."));
+            RefreshSearchResultVisual();
+            return;
+        }
+
+        var card = PlayerCard.CreateUnknown(nickname);
+        card.UpdateDisplaySettings(_showServerAddress, _showExtraDetails);
+
+        if (_lastSearchResult is not null && _lastSearchOnline)
+        {
+            card.SetOnline(_lastSearchResult);
+        }
+
+        Players.Add(card);
+        AddEvent(_currentLanguage == "ru" ? $"Добавлен ник из поиска: {nickname}" : $"Added nickname from search: {nickname}");
+        SaveSettings();
+        RefreshSearchResultVisual();
+    }
+
+    private void ClearSearchResult_Click(object sender, RoutedEventArgs e)
+    {
+        HideSearchResult();
+    }
+
+    private void SetSearchLoading(string nickname)
+    {
+        _lastSearchNickname = nickname;
+        _lastSearchResult = null;
+        _lastSearchOnline = false;
+
+        SearchResultStrip.Visibility = Visibility.Visible;
+        SearchResultStrip.Background = GetResourceBrush("StateWaitingBadgeBackground", "#342A12");
+        SearchResultStrip.BorderBrush = GetResourceBrush("StateWaitingBorder", "#D4A94B");
+        SearchResultStatusDot.Text = "●";
+        SearchResultStatusDot.Foreground = GetResourceBrush("StateWaitingBorder", "#D4A94B");
+        SearchResultNicknameText.Text = nickname;
+        SearchResultClanText.Text = Text("Searching...", "Поиск...", "Buscando...");
+        SearchResultClanText.Visibility = Visibility.Visible;
+        SearchResultMapText.Visibility = Visibility.Collapsed;
+        SearchResultAddButton.IsEnabled = false;
+        SearchResultAddButton.Content = Text("Checking", "Проверка", "Comprobando");
+    }
+
+    private void ShowSearchResult(QuickNicknameSearchResult searchResult)
+    {
+        _lastSearchResult = searchResult.Player;
+        _lastSearchOnline = searchResult.IsOnline;
+        _lastSearchNickname = searchResult.DisplayNickname;
+
+        SearchResultStrip.Visibility = Visibility.Visible;
+        RefreshSearchResultVisual();
+
+        AddEvent(_lastSearchOnline
+            ? Text($"Search: {_lastSearchNickname} is online", $"Поиск: {_lastSearchNickname} найден онлайн", $"Búsqueda: {_lastSearchNickname} está en línea")
+            : Text($"Search: {searchResult.RequestedNickname} is not online", $"Поиск: {searchResult.RequestedNickname} не найден онлайн", $"Búsqueda: {searchResult.RequestedNickname} no está en línea"));
+    }
+
+    private void ShowSearchError(string nickname, string message)
+    {
+        _lastSearchNickname = nickname;
+        _lastSearchResult = null;
+        _lastSearchOnline = false;
+
+        SearchResultStrip.Visibility = Visibility.Visible;
+        SearchResultStrip.Background = GetResourceBrush("StateOfflineBadgeBackground", "#34111B");
+        SearchResultStrip.BorderBrush = GetResourceBrush("StateOfflineBorder", "#F27A92");
+        SearchResultStatusDot.Text = "●";
+        SearchResultStatusDot.Foreground = GetResourceBrush("StateOfflineBorder", "#F27A92");
+        SearchResultNicknameText.Text = nickname;
+        SearchResultClanText.Text = Text("Search error", "Ошибка поиска", "Error de búsqueda");
+        SearchResultClanText.Visibility = Visibility.Visible;
+        SearchResultMapText.Text = message;
+        SearchResultMapText.Visibility = Visibility.Visible;
+        SearchResultAddButton.IsEnabled = false;
+        SearchResultAddButton.Content = Text("Error", "Ошибка", "Error");
+        AddEvent(_currentLanguage == "ru" ? $"Ошибка поиска: {message}" : $"Search error: {message}");
+    }
+
+    private void HideSearchResult()
+    {
+        _lastSearchNickname = string.Empty;
+        _lastSearchResult = null;
+        _lastSearchOnline = false;
+        SearchResultStrip.Visibility = Visibility.Collapsed;
+    }
+
+    private void RefreshSearchResultVisual()
+    {
+        if (SearchResultStrip is null || SearchResultStrip.Visibility != Visibility.Visible)
+        {
+            return;
+        }
+
+        var duplicate = !string.IsNullOrWhiteSpace(_lastSearchNickname) && Players.Any(player =>
+            DdnetMasterClient.NormalizeName(player.Nickname) == DdnetMasterClient.NormalizeName(_lastSearchNickname));
+
+        if (_lastSearchOnline && _lastSearchResult is not null)
+        {
+            var clan = string.IsNullOrWhiteSpace(_lastSearchResult.Clan) ? "—" : _lastSearchResult.Clan;
+            SearchResultStrip.Background = GetResourceBrush("StateOnlineBadgeBackground", "#103225");
+            SearchResultStrip.BorderBrush = GetResourceBrush("StateOnlineBorder", "#52D89A");
+            SearchResultStatusDot.Text = "●";
+            SearchResultStatusDot.Foreground = GetResourceBrush("StateOnlineBorder", "#52D89A");
+            SearchResultNicknameText.Text = _lastSearchResult.Nickname;
+            SearchResultClanText.Text = $"Clan: {clan}";
+            SearchResultClanText.Visibility = Visibility.Visible;
+            SearchResultMapText.Text = $"Map: {_lastSearchResult.MapName}";
+            SearchResultMapText.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            SearchResultStrip.Background = GetResourceBrush("CardBackground", "#101A2B");
+            SearchResultStrip.BorderBrush = GetResourceBrush("StateOfflineBorder", "#F27A92");
+            SearchResultStatusDot.Text = "○";
+            SearchResultStatusDot.Foreground = GetResourceBrush("StateOfflineBorder", "#F27A92");
+            SearchResultNicknameText.Text = _lastSearchNickname;
+            SearchResultClanText.Text = Text("Not online", "Не найден онлайн", "No está en línea");
+            SearchResultClanText.Visibility = Visibility.Visible;
+            SearchResultMapText.Visibility = Visibility.Collapsed;
+        }
+
+        SearchResultAddButton.Content = duplicate
+            ? (Text("Added", "Добавлен", "Añadido"))
+            : (Text("+ Watch", "+ Добавить", "+ Vigilar"));
+        SearchResultAddButton.IsEnabled = !duplicate && !string.IsNullOrWhiteSpace(_lastSearchNickname);
+    }
+
     private void ToggleNotificationOptions_Click(object sender, RoutedEventArgs e)
     {
         NotificationOptionsPanel.Visibility = NotificationOptionsPanel.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
@@ -367,8 +603,8 @@ public partial class MainWindow : Window
         }
 
         _cooldownSeconds = Math.Max(5, (int)Math.Round(e.NewValue));
-        CooldownValueText.Text = _currentLanguage == "ru" ? $"{_cooldownSeconds} с" : $"{_cooldownSeconds} s";
-        FooterIntervalText.Text = _currentLanguage == "ru" ? $"Проверка: {FormatSeconds(_cooldownSeconds)}" : $"Check every: {FormatSeconds(_cooldownSeconds)}";
+        CooldownValueText.Text = IsRu ? $"{_cooldownSeconds} с" : $"{_cooldownSeconds} s";
+        FooterIntervalText.Text = Text($"Check every: {FormatSeconds(_cooldownSeconds)}", $"Проверка: {FormatSeconds(_cooldownSeconds)}", $"Cada: {FormatSeconds(_cooldownSeconds)}");
         _scanTimer.Interval = TimeSpan.FromSeconds(_cooldownSeconds);
         SaveSettings();
     }
@@ -415,14 +651,22 @@ public partial class MainWindow : Window
         SaveSettings();
     }
 
-    private void MapServerFilter_Checked(object sender, RoutedEventArgs e)
+    private void ChangeMapServerFilter_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not RadioButton button || button.Tag is not string filter)
+        var dialog = new SelectRegionsWindow
+        {
+            Owner = this,
+            LanguageCode = _currentLanguage,
+            SelectedFilter = _mapServerFilter
+        };
+
+        if (dialog.ShowDialog() != true)
         {
             return;
         }
 
-        _mapServerFilter = filter;
+        _mapServerFilter = dialog.SelectedFilter;
+        UpdateMapServerFilterText();
         SaveSettings();
         _ = ScanAsync();
     }
@@ -463,7 +707,7 @@ public partial class MainWindow : Window
             LocalizationService.CurrentLanguage = _currentLanguage;
 
             CooldownSlider.Value = _cooldownSeconds;
-            CooldownValueText.Text = _currentLanguage == "ru" ? $"{_cooldownSeconds} с" : $"{_cooldownSeconds} s";
+            CooldownValueText.Text = IsRu ? $"{_cooldownSeconds} с" : $"{_cooldownSeconds} s";
             MapAlertPlayersSlider.Value = _mapAlertMinPlayers;
             MapAlertPlayersValueText.Text = _mapAlertMinPlayers.ToString(CultureInfo.InvariantCulture);
 
@@ -477,9 +721,9 @@ public partial class MainWindow : Window
             ShowAddressCheck.IsChecked = settings.ShowServerAddress;
             ShowExtraDetailsCheck.IsChecked = settings.ShowExtraPlayerDetails;
 
-            SelectRadioByTag(new[] { LanguageEnglishButton, LanguageRussianButton }, _currentLanguage);
+            SelectRadioByTag(new[] { LanguageEnglishButton, LanguageRussianButton, LanguageSpanishButton }, _currentLanguage);
             SelectRadioByTag(new[] { ThemeLightButton, ThemeDarkButton }, _currentTheme);
-            SelectRadioByTag(new[] { FilterAnyButton, FilterGerButton, FilterRusButton, FilterGerRusButton }, _mapServerFilter);
+            UpdateMapServerFilterText();
 
             foreach (var nickname in settings.Nicknames.Where(name => !string.IsNullOrWhiteSpace(name)).Select(name => name.Trim()).Distinct(StringComparer.Ordinal))
             {
@@ -636,7 +880,7 @@ public partial class MainWindow : Window
             var normalizedMap = DdnetMasterClient.NormalizeMapName(map.Name);
             var servers = snapshot.Servers
                 .Where(server => string.Equals(DdnetMasterClient.NormalizeMapName(server.MapName), normalizedMap, StringComparison.OrdinalIgnoreCase))
-                .Where(server => ServerMatchesFilter(server.ServerName))
+                .Where(ServerMatchesFilter)
                 .Select(server => new MapServerInfo(server.ServerName, server.ServerAddress, server.MapName, server.GameType, server.PlayerCount, server.MaxPlayers))
                 .ToList();
 
@@ -668,15 +912,59 @@ public partial class MainWindow : Window
         map.AlertActive = active;
     }
 
-    private bool ServerMatchesFilter(string serverName)
+    private bool ServerMatchesFilter(ServerSnapshot server)
     {
-        return _mapServerFilter switch
+        var selected = ParseSelectedRegions(_mapServerFilter).ToList();
+
+        if (selected.Count == 0)
         {
-            "GER" => serverName.Contains("GER", StringComparison.OrdinalIgnoreCase) || serverName.Contains("German", StringComparison.OrdinalIgnoreCase),
-            "RUS" => serverName.Contains("RUS", StringComparison.OrdinalIgnoreCase) || serverName.Contains("Russian", StringComparison.OrdinalIgnoreCase),
-            "GER_RUS" => serverName.Contains("GER", StringComparison.OrdinalIgnoreCase) || serverName.Contains("German", StringComparison.OrdinalIgnoreCase) || serverName.Contains("RUS", StringComparison.OrdinalIgnoreCase) || serverName.Contains("Russian", StringComparison.OrdinalIgnoreCase),
-            _ => true
-        };
+            return true;
+        }
+
+        return selected.Any(region => ServerMatchesRegion(server, region));
+    }
+
+    private static bool ServerMatchesRegion(ServerSnapshot server, string region)
+    {
+        if (string.Equals(server.Location, region, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return server.ServerName.Contains(region, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static IEnumerable<string> ParseSelectedRegions(string filter)
+    {
+        if (string.IsNullOrWhiteSpace(filter) || string.Equals(filter, "Any", StringComparison.OrdinalIgnoreCase))
+        {
+            return Array.Empty<string>();
+        }
+
+        if (string.Equals(filter, "GER_RUS", StringComparison.OrdinalIgnoreCase))
+        {
+            return new[] { "GER", "RUS" };
+        }
+
+        return filter
+            .Split(new[] { ',', '|', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(region => region.Trim().ToUpperInvariant())
+            .Where(region => region.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private string FormatMapServerFilter()
+    {
+        var selected = ParseSelectedRegions(_mapServerFilter).ToList();
+        return selected.Count == 0 ? Text("Any", "Любой", "Cualquiera") : string.Join(" | ", selected);
+    }
+
+    private void UpdateMapServerFilterText()
+    {
+        if (MapServerFilterValueText is not null)
+        {
+            MapServerFilterValueText.Text = FormatMapServerFilter();
+        }
     }
 
     private void RefreshSelectedMapDetails()
@@ -700,30 +988,30 @@ public partial class MainWindow : Window
 
     private void SetScanningState()
     {
-        SidebarStateText.Text = _currentLanguage == "ru" ? "Проверка..." : "Scanning...";
+        SidebarStateText.Text = Text("Scanning...", "Проверка...", "Escaneando...");
         SidebarStateText.Foreground = BrushFromHex("#FAD66B");
-        TopStatusText.Text = _currentLanguage == "ru" ? "● Проверка" : "● Scanning";
+        TopStatusText.Text = Text("● Scanning", "● Проверка", "● Escaneando");
         TopStatusText.Foreground = BrushFromHex("#FAD66B");
     }
 
     private void SetScanSuccessState()
     {
         var now = DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
-        FooterLastScanText.Text = _currentLanguage == "ru" ? $"Последняя проверка: {now}" : $"Last scan: {now}";
-        SidebarScanText.Text = _currentLanguage == "ru" ? $"Последняя проверка: {now}" : $"Last scan: {now}";
+        FooterLastScanText.Text = Text($"Last scan: {now}", $"Последняя проверка: {now}", $"Último escaneo: {now}");
+        SidebarScanText.Text = Text($"Last scan: {now}", $"Последняя проверка: {now}", $"Último escaneo: {now}");
         FooterMasterText.Text = "master status: OK";
-        SidebarStateText.Text = _currentLanguage == "ru" ? "Мониторинг активен" : "Monitoring active";
+        SidebarStateText.Text = Text("Monitoring active", "Мониторинг активен", "Monitoreo activo");
         SidebarStateText.Foreground = BrushFromHex("#3DFF9F");
-        TopStatusText.Text = _currentLanguage == "ru" ? "● Мониторинг ON" : "● Monitoring ON";
+        TopStatusText.Text = Text("● Monitoring ON", "● Мониторинг ON", "● Monitoreo ON");
         TopStatusText.Foreground = GetResourceBrush("StateOnlineBadgeForeground", "#C6FFE2");
     }
 
     private void SetScanErrorState(string message)
     {
         FooterMasterText.Text = "master status: error";
-        SidebarStateText.Text = _currentLanguage == "ru" ? "Ошибка соединения" : "Connection error";
+        SidebarStateText.Text = Text("Connection error", "Ошибка соединения", "Error de conexión");
         SidebarStateText.Foreground = BrushFromHex("#FF4F6D");
-        TopStatusText.Text = _currentLanguage == "ru" ? "● Ошибка соединения" : "● Connection error";
+        TopStatusText.Text = Text("● Connection error", "● Ошибка соединения", "● Error de conexión");
         TopStatusText.Foreground = BrushFromHex("#FF8FA2");
         AddEvent(_currentLanguage == "ru" ? $"Ошибка проверки: {message}" : $"Scan error: {message}");
     }
@@ -769,7 +1057,7 @@ public partial class MainWindow : Window
             }
         }
 
-        AddEvent((_currentLanguage == "ru" ? "Уведомление" : "Notification") + $": {title}");
+        AddEvent((Text("Notification", "Уведомление", "Notificación")) + $": {title}");
     }
 
     private void ShowDuplicateMessage(string message)
@@ -789,15 +1077,19 @@ public partial class MainWindow : Window
             EmptyMapsState.Visibility = WatchedMaps.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        FooterPlayersText.Text = _currentLanguage == "ru"
+        FooterPlayersText.Text = IsRu
             ? Players.Count == 1 ? "1 ник" : $"{Players.Count} ников"
-            : Players.Count == 1 ? "1 nickname" : $"{Players.Count} nicknames";
+            : IsEs
+                ? Players.Count == 1 ? "1 nick" : $"{Players.Count} nicks"
+                : Players.Count == 1 ? "1 nickname" : $"{Players.Count} nicknames";
 
-        FooterMapsText.Text = _currentLanguage == "ru"
+        FooterMapsText.Text = IsRu
             ? WatchedMaps.Count == 1 ? "1 карта" : $"{WatchedMaps.Count} карт"
-            : WatchedMaps.Count == 1 ? "1 map" : $"{WatchedMaps.Count} maps";
+            : IsEs
+                ? WatchedMaps.Count == 1 ? "1 mapa" : $"{WatchedMaps.Count} mapas"
+                : WatchedMaps.Count == 1 ? "1 map" : $"{WatchedMaps.Count} maps";
 
-        FooterIntervalText.Text = _currentLanguage == "ru" ? $"Проверка: {FormatSeconds(_cooldownSeconds)}" : $"Check every: {FormatSeconds(_cooldownSeconds)}";
+        FooterIntervalText.Text = Text($"Check every: {FormatSeconds(_cooldownSeconds)}", $"Проверка: {FormatSeconds(_cooldownSeconds)}", $"Cada: {FormatSeconds(_cooldownSeconds)}");
 
         foreach (var player in Players)
         {
@@ -809,6 +1101,7 @@ public partial class MainWindow : Window
             map.RefreshCalculatedProperties();
         }
 
+        RefreshSearchResultVisual();
         RefreshSelectedMapDetails();
     }
 
@@ -823,91 +1116,121 @@ public partial class MainWindow : Window
     private void ApplyLocalization()
     {
         LocalizationService.CurrentLanguage = _currentLanguage;
-        var ru = _currentLanguage == "ru";
 
         Title = $"{AppMetadata.DisplayName} {AppMetadata.Version}";
         WindowTitleText.Text = Title;
 
-        AboutNavText.Text = ru ? "О приложении" : "About";
-        HomeNavText.Text = ru ? "Главное меню" : "Main menu";
-        NotificationsNavText.Text = ru ? "Уведомления" : "Notifications";
-        OptionsNavText.Text = ru ? "Настройки" : "Options";
-        SidebarEventsTitle.Text = ru ? "События" : "Recent events";
+        AboutNavText.Text = Text("About", "О приложении", "Acerca de");
+        HomeNavText.Text = Text("Main menu", "Главное меню", "Menú principal");
+        NotificationsNavText.Text = Text("Notifications", "Уведомления", "Notificaciones");
+        OptionsNavText.Text = Text("Options", "Настройки", "Opciones");
+        SidebarEventsTitle.Text = Text("Recent events", "События", "Eventos recientes");
 
-        HomeHeaderText.Text = ru ? "Главное меню" : "Main menu";
-        HomeSubheaderText.Text = ru ? "Отслеживайте ники и карты DDNet из публичного списка серверов." : "Watch DDNet players and maps from the public server list.";
-        AddNicknameButton.Content = ru ? "+ Добавить ник" : "+ Add nickname";
-        AddMapButton.Content = ru ? "+ Добавить карту" : "+ Add map";
-        CardsTitleText.Text = ru ? "Отслеживаемые ники" : "Watched nicknames";
-        MapsTitleText.Text = ru ? "Отслеживаемые карты" : "Watched maps";
-        MapsSubtitleText.Text = ru ? "Откройте папку карты, чтобы увидеть активные серверы." : "Open a map folder to see active servers.";
-        ScanNowButton.Content = ru ? "Проверить сейчас" : "Scan now";
-        ScanMapsButton.Content = ru ? "Проверить сейчас" : "Scan now";
-        EmptyStateTitle.Text = ru ? "Пока нет ников" : "No nicknames yet";
-        EmptyStateText.Text = ru ? "Добавьте ник, чтобы начать мониторинг." : "Add a nickname to start monitoring.";
-        EmptyMapsTitle.Text = ru ? "Пока нет карт" : "No maps yet";
-        EmptyMapsText.Text = ru ? "Добавьте карту, чтобы отслеживать активные серверы." : "Add a map to watch active servers.";
-        BackToMapsButton.Content = ru ? "← Назад" : "← Back";
-        NoMapServersTitle.Text = ru ? "Нет активных серверов" : "No active servers";
-        NoMapServersText.Text = ru ? "Этой карты сейчас нет с выбранным фильтром серверов." : "This map is not active on the selected server filter.";
+        HomeHeaderText.Text = Text("Main menu", "Главное меню", "Menú principal");
+        HomeSubheaderText.Text = Text(
+            "Watch DDNet players and maps from the public server list.",
+            "Отслеживайте ники и карты DDNet из публичного списка серверов.",
+            "Sigue jugadores y mapas de DDNet desde la lista pública de servidores.");
+        AddNicknameButton.Content = Text("+ Add nickname", "+ Добавить ник", "+ Añadir nick");
+        AddMapButton.Content = Text("+ Add map", "+ Добавить карту", "+ Añadir mapa");
+        CardsTitleText.Text = Text("Watched nicknames", "Отслеживаемые ники", "Nicks vigilados");
+        MapsTitleText.Text = Text("Watched maps", "Отслеживаемые карты", "Mapas vigilados");
+        MapsSubtitleText.Text = Text(
+            "Open a map folder to see active servers.",
+            "Откройте папку карты, чтобы увидеть активные серверы.",
+            "Abre un mapa para ver servidores activos.");
+        ScanNowButton.Content = Text("Scan now", "Проверить сейчас", "Escanear ahora");
+        ScanMapsButton.Content = Text("Scan now", "Проверить сейчас", "Escanear ahora");
+        EmptyStateTitle.Text = Text("No nicknames yet", "Пока нет ников", "Aún no hay nicks");
+        EmptyStateText.Text = Text(
+            "Use quick search above to add a nickname.",
+            "Используйте быстрый поиск выше, чтобы добавить ник.",
+            "Usa la búsqueda rápida de arriba para añadir un nick.");
+        EmptyMapsTitle.Text = Text("No maps yet", "Пока нет карт", "Aún no hay mapas");
+        EmptyMapsText.Text = Text(
+            "Add a map to watch active servers.",
+            "Добавьте карту, чтобы отслеживать активные серверы.",
+            "Añade un mapa para seguir servidores activos.");
+        SearchTitleText.Text = Text("Quick nickname search", "Быстрый поиск ника", "Búsqueda rápida de nick");
+        SearchNicknameButton.Content = Text("Search now", "Найти сейчас", "Buscar ahora");
+        SearchResultClearButton.Content = "×";
+        BackToMapsButton.Content = Text("← Back", "← Назад", "← Atrás");
+        NoMapServersTitle.Text = Text("No active servers", "Нет активных серверов", "No hay servidores activos");
+        NoMapServersText.Text = Text(
+            "This map is not active on the selected server filter.",
+            "Этой карты сейчас нет с выбранным фильтром серверов.",
+            "Este mapa no está activo con el filtro de servidores seleccionado.");
 
-        NotificationsHeaderText.Text = ru ? "Уведомления" : "Notifications";
-        NotificationsSubheaderText.Text = ru ? "Выберите, какие локальные уведомления Windows нужно показывать." : "Choose which local Windows notifications should be shown.";
-        WindowsNotificationsTitle.Text = ru ? "Уведомления Windows" : "Windows notifications";
-        WindowsNotificationsCheck.Content = ru ? "Вкл" : "On";
-        NotifyJoinCheck.Content = ru ? "Уведомлять, когда игрок заходит" : "Notify when a player joins";
-        NotifyLeaveCheck.Content = ru ? "Уведомлять, когда игрок выходит" : "Notify when a player leaves";
-        NotifyServerCheck.Content = ru ? "Уведомлять, когда игрок меняет сервер" : "Notify when a player changes server";
-        NotifyMapCheck.Content = ru ? "Уведомлять, когда игрок меняет карту" : "Notify when a player changes map";
-        MapAlertsCheck.Content = ru ? "Уведомлять, когда на карте набрался онлайн" : "Notify when watched maps reach the selected online";
-        PlaySoundCheck.Content = ru ? "Воспроизводить звук вместе с уведомлением" : "Play a sound with notifications";
+        NotificationsHeaderText.Text = Text("Notifications", "Уведомления", "Notificaciones");
+        NotificationsSubheaderText.Text = Text(
+            "Choose which local Windows notifications should be shown.",
+            "Выберите, какие локальные уведомления Windows нужно показывать.",
+            "Elige qué notificaciones locales de Windows mostrar.");
+        WindowsNotificationsTitle.Text = Text("Windows notifications", "Уведомления Windows", "Notificaciones de Windows");
+        WindowsNotificationsCheck.Content = Text("On", "Вкл", "Activado");
+        NotifyJoinCheck.Content = Text("Notify when a player joins", "Уведомлять, когда игрок заходит", "Avisar cuando un jugador entra");
+        NotifyLeaveCheck.Content = Text("Notify when a player leaves", "Уведомлять, когда игрок выходит", "Avisar cuando un jugador sale");
+        NotifyServerCheck.Content = Text("Notify when a player changes server", "Уведомлять, когда игрок меняет сервер", "Avisar cuando cambia de servidor");
+        NotifyMapCheck.Content = Text("Notify when a player changes map", "Уведомлять, когда игрок меняет карту", "Avisar cuando cambia de mapa");
+        MapAlertsCheck.Content = Text("Notify when watched maps reach the selected online", "Уведомлять, когда на карте набрался онлайн", "Avisar cuando un mapa vigilado alcance el online elegido");
+        PlaySoundCheck.Content = Text("Play a sound with notifications", "Воспроизводить звук вместе с уведомлением", "Reproducir sonido con las notificaciones");
         DiscordTitleText.Text = "Discord";
-        DiscordInfoText.Text = ru ? "В разработке" : "In development";
+        DiscordInfoText.Text = Text("In development", "В разработке", "En desarrollo");
         TelegramTitleText.Text = "Telegram";
-        TelegramInfoText.Text = ru ? "В разработке" : "In development";
+        TelegramInfoText.Text = Text("In development", "В разработке", "En desarrollo");
 
-        OptionsHeaderText.Text = ru ? "Настройки" : "Options";
-        AppearanceTitleText.Text = ru ? "Внешний вид" : "Appearance";
-        LanguageLabelText.Text = ru ? "Язык" : "Language";
-        ThemeLabelText.Text = ru ? "Тема" : "Theme";
-        ThemeLightButton.Content = ru ? "Светлая" : "Light";
-        ThemeDarkButton.Content = ru ? "Тёмная" : "Dark";
-        MonitoringTitleText.Text = ru ? "Мониторинг" : "Monitoring";
-        IntervalLabelText.Text = ru ? "Интервал проверки" : "Scan interval";
-        MapsOptionsTitleText.Text = ru ? "Карты" : "Maps";
-        MapAlertPlayersLabelText.Text = ru ? "Онлайн для сигнала" : "Alert online";
-        MapServerFilterLabelText.Text = ru ? "Фильтр серверов" : "Server filter";
-        CardsOptionsTitleText.Text = ru ? "Карточки" : "Card display";
-        ShowAddressCheck.Content = ru ? "Показывать адрес сервера в деталях" : "Show server address in details";
-        ShowExtraDetailsCheck.Content = ru ? "Показывать дополнительные данные игрока" : "Show extra player details";
+        OptionsHeaderText.Text = Text("Options", "Настройки", "Opciones");
+        AppearanceTitleText.Text = Text("Appearance", "Внешний вид", "Apariencia");
+        LanguageLabelText.Text = Text("Language", "Язык", "Idioma");
+        ThemeLabelText.Text = Text("Theme", "Тема", "Tema");
+        ThemeLightButton.Content = Text("Light", "Светлая", "Claro");
+        ThemeDarkButton.Content = Text("Dark", "Тёмная", "Oscuro");
+        MonitoringTitleText.Text = Text("Monitoring", "Мониторинг", "Monitoreo");
+        IntervalLabelText.Text = Text("Scan interval", "Интервал проверки", "Intervalo de escaneo");
+        MapsOptionsTitleText.Text = Text("Maps", "Карты", "Mapas");
+        MapAlertPlayersLabelText.Text = Text("Alert online", "Онлайн для сигнала", "Online para aviso");
+        MapServerFilterLabelText.Text = Text("Tracked regions", "Отслеживаемые серверы", "Regiones vigiladas");
+        ChangeMapServerFilterButton.Content = Text("Change", "Изменить", "Cambiar");
+        CardsOptionsTitleText.Text = Text("Card display", "Карточки", "Tarjetas");
+        ShowAddressCheck.Content = Text("Show server address in details", "Показывать адрес сервера в деталях", "Mostrar dirección del servidor en detalles");
+        ShowExtraDetailsCheck.Content = Text("Show extra player details", "Показывать дополнительные данные игрока", "Mostrar detalles extra del jugador");
 
-        AboutHeaderText.Text = ru ? "О приложении" : "About";
-        AboutSummaryText.Text = ru ? "DDNetNW проверяет выбранные ники и карты по публичному списку серверов DDNet." : "DDNetNW checks selected nicknames and maps against the public DDNet server list.";
-        AboutVersionText.Text = (ru ? "Версия: " : "Version: ") + AppMetadata.Version;
+        AboutHeaderText.Text = Text("About", "О приложении", "Acerca de");
+        AboutSummaryText.Text = Text(
+            "DDNetNW checks selected nicknames and maps against the public DDNet server list.",
+            "DDNetNW проверяет выбранные ники и карты по публичному списку серверов DDNet.",
+            "DDNetNW comprueba nicks y mapas elegidos usando la lista pública de servidores DDNet.");
+        AboutVersionText.Text = Text("Version: ", "Версия: ", "Versión: ") + AppMetadata.Version;
         AboutCreatorText.Text = AppMetadata.CreatorLine;
-        AboutHowItWorksTitleText.Text = ru ? "Как это работает" : "How it works";
-        AboutHowItWorksText.Text = ru
-            ? "Приложение читает DDNet servers.json, проверяет игроков и карты, а затем локально обновляет карточки."
-            : "The app reads DDNet servers.json, scans players and maps, and updates local cards.";
-        AboutFeaturesTitleText.Text = ru ? "Основные функции" : "Main features";
-        AboutFeaturesText.Text = ru
-            ? "Отслеживание игроков, папки карт, уведомления по онлайну карты, фильтр серверов, локальные уведомления, темы и переключение языка."
-            : "Player tracking, map folders, map online alerts, server filtering, local notifications, custom themes and bilingual UI.";
-        AboutDataTitleText.Text = ru ? "Источник данных" : "Data source";
-        AboutDataText.Text = ru
-            ? "DDNetNW использует публичный список master-серверов DDNet. Приложению не нужен вход в аккаунт и не нужен отдельный сервер."
-            : "DDNetNW uses the public DDNet master server list. It does not log into DDNet and does not need a private server.";
-        AboutStorageTitleText.Text = ru ? "Хранение и приватность" : "Storage and privacy";
-        AboutStorageText.Text = ru
-            ? "Настройки хранятся локально в папке AppData пользователя. Приложение не отправляет отслеживаемые ники или карты сторонним сервисам."
-            : "Settings are stored locally in the user AppData folder. The app does not send watched nicknames or maps to any third-party service.";
-        AboutLimitationsTitleText.Text = ru ? "Ограничения" : "Limitations";
-        AboutLimitationsText.Text = ru
-            ? "Ники DDNet не являются аккаунтами. Приложение отслеживает публичный текст ника и активность карт/серверов, поэтому визуально похожие имена всё равно могут быть разными игроками."
-            : "DDNet nicknames are not accounts. The app tracks public nickname text and public map/server activity, so visually similar names can still be different players.";
+        AboutHowItWorksTitleText.Text = Text("How it works", "Как это работает", "Cómo funciona");
+        AboutHowItWorksText.Text = Text(
+            "The app reads DDNet servers.json, scans players and maps, and updates local cards.",
+            "Приложение читает DDNet servers.json, проверяет игроков и карты, а затем локально обновляет карточки.",
+            "La app lee DDNet servers.json, escanea jugadores y mapas, y actualiza las tarjetas locales.");
+        AboutFeaturesTitleText.Text = Text("Main features", "Основные функции", "Funciones principales");
+        AboutFeaturesText.Text = Text(
+            "Player tracking, map folders, map online alerts, server filtering, local notifications, custom themes and multilingual UI.",
+            "Отслеживание игроков, папки карт, уведомления по онлайну карты, фильтр серверов, локальные уведомления, темы и переключение языка.",
+            "Seguimiento de jugadores, carpetas de mapas, alertas de mapas, filtros de servidor, notificaciones locales, temas e interfaz multilingüe.");
+        AboutDataTitleText.Text = Text("Data source", "Источник данных", "Fuente de datos");
+        AboutDataText.Text = Text(
+            "DDNetNW uses the public DDNet master server list. It does not log into DDNet and does not need a private server.",
+            "DDNetNW использует публичный список master-серверов DDNet. Приложению не нужен вход в аккаунт и не нужен отдельный сервер.",
+            "DDNetNW usa la lista pública de servidores master de DDNet. No inicia sesión en DDNet y no necesita servidor privado.");
+        AboutStorageTitleText.Text = Text("Storage and privacy", "Хранение и приватность", "Almacenamiento y privacidad");
+        AboutStorageText.Text = Text(
+            "Settings are stored locally in the user AppData folder. The app does not send watched nicknames or maps to any third-party service.",
+            "Настройки хранятся локально в папке AppData пользователя. Приложение не отправляет отслеживаемые ники или карты сторонним сервисам.",
+            "La configuración se guarda localmente en AppData. La app no envía nicks o mapas vigilados a servicios de terceros.");
+        AboutLimitationsTitleText.Text = Text("Limitations", "Ограничения", "Limitaciones");
+        AboutLimitationsText.Text = Text(
+            "DDNet nicknames are not accounts. The app tracks public nickname text and public map/server activity, so visually similar names can still be different players.",
+            "Ники DDNet не являются аккаунтами. Приложение отслеживает публичный текст ника и активность карт/серверов, поэтому визуально похожие имена всё равно могут быть разными игроками.",
+            "Los nicks de DDNet no son cuentas. La app sigue texto público de nicks y actividad pública de mapas/servidores, por eso nombres parecidos pueden ser jugadores diferentes.");
 
+        UpdateMapServerFilterText();
         UpdateStaticUi();
-        CooldownValueText.Text = ru ? $"{_cooldownSeconds} с" : $"{_cooldownSeconds} s";
+        CooldownValueText.Text = IsRu ? $"{_cooldownSeconds} с" : IsEs ? $"{_cooldownSeconds} s" : $"{_cooldownSeconds} s";
         MapAlertPlayersValueText.Text = _mapAlertMinPlayers.ToString(CultureInfo.InvariantCulture);
     }
 
@@ -1037,11 +1360,24 @@ public partial class MainWindow : Window
         }
     }
 
+    private bool IsRu => string.Equals(_currentLanguage, "ru", StringComparison.OrdinalIgnoreCase);
+    private bool IsEs => string.Equals(_currentLanguage, "es", StringComparison.OrdinalIgnoreCase);
+
+    private string Text(string en, string ru, string es)
+    {
+        return IsRu ? ru : IsEs ? es : en;
+    }
+
     private string FormatSeconds(int seconds)
     {
-        if (_currentLanguage == "ru")
+        if (IsRu)
         {
             return $"{seconds} с";
+        }
+
+        if (IsEs)
+        {
+            return seconds == 1 ? "1 segundo" : $"{seconds} segundos";
         }
 
         return seconds == 1 ? "1 second" : $"{seconds} seconds";
@@ -1100,6 +1436,7 @@ public partial class MainWindow : Window
     {
         SaveSettings();
         _scanTimer.Stop();
+        _searchDebounceTimer.Stop();
         _notificationService.Dispose();
         _masterClient.Dispose();
         base.OnClosed(e);

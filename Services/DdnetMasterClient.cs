@@ -127,6 +127,7 @@ public sealed class DdnetMasterClient : IDisposable
             var gameType = ReadString(info, "game_type", "unknown");
             var mapName = ReadMapName(info);
             var address = ReadFirstAddress(server);
+            var location = ReadString(server, "location", string.Empty);
             var maxPlayers = ReadInt(info, "max_players", ReadInt(info, "max_clients", 0));
             var clientsResult = new List<ClientSnapshot>();
 
@@ -155,6 +156,7 @@ public sealed class DdnetMasterClient : IDisposable
             serversResult.Add(new ServerSnapshot(
                 ServerName: serverName,
                 ServerAddress: address,
+                Location: location,
                 MapName: mapName,
                 GameType: gameType,
                 PlayerCount: clientsResult.Count,
